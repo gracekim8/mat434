@@ -1,0 +1,28 @@
+---
+title: "pythonSetup"
+output: html_document
+date: "2023-09-01"
+---
+
+```{r setup, include=FALSE}
+library(reticulate)
+knitr::opts_chunk$set(echo = TRUE)
+reticulate::use_virtualenv("mat434")
+virtualenv_install("mat434", "numpy")
+virtualenv_install("mat434", "pandas")
+virtualenv_install("mat434", "plotnine")
+virtualenv_install("mat434", "scikit-learn")
+
+
+```
+
+running code in Python
+
+```{python}
+import pandas as pd
+FAAdata = pd.read_csv("https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/faa_birdstrikes.csv")
+
+FAAdata.head()
+
+```
+birdstrike data metadata like species quantity, flight_impact, etc. data like years.

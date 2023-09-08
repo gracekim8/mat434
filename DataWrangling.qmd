@@ -1,0 +1,295 @@
+---
+title: "Data Wrangling in R and Python"
+author: "You, Scientist"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+format: html
+theme: cerulean
+---
+
+## Installing and Loading Packages/Modules
+
+When we load R and/or Python, we have access to basic functionality. If we want to do more than the basics (and we do), then we'll need to extend functionality by installing and loading packages (R) or modules (Python). These things only need to be installed once, but must be loaded into each session during which we want to use them. Typically, it is polite to install any packages in the *console* and to load all of your libraries or modules at the beginning of a notebook.
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+```
+
+
+```{r}
+library(reticulate)
+use_virtualenv("mat434")
+#virtualenv_install("mat434", "numpy")
+```
+
+```{python}
+import pandas as pd
+import numpy as np
+```
+
+## Loading Data
+
+We have two datasets to work with. They are located at the following URLS:
+
++ **Batted Balls:** `"https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/battedballs.csv"`
++ **Park Dimensions:** `"https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/park_dimensions.csv"`
+
+Let's read them into our environment. 
+
+Read the data into R...
+
+```{r}
+battedBalls = read_csv("https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/battedballs.csv")
+parks = read_csv("https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/park_dimensions.csv")
+
+```
+
+Read the data into Python...
+
+```{python}
+battedBalls = pd.read_csv("https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/battedballs.csv")
+parks = pd.read_csv("https://raw.githubusercontent.com/agmath/agmath.github.io/master/data/classification/park_dimensions.csv")
+
+```
+
+## Viewing the Data
+
+Let's get a look at our data. The two languages have different functions for viewing data, but their purposes largely overlap. We can,
+
++ View the first few rows of a data frame.
++ View the final few rows of a data frame.
++ Get an overview of how the language is treating our data.
+
+Let's see these things below.
+
+```{r}
+battedBalls %>%
+  head()
+
+battedBalls %>%
+  glimpse()
+
+```
+
+
+```{python}
+battedBalls.head()
+battedBalls.tail()
+battedBalls.info()
+
+```
+
+## Filtering Rows (Records)
+
+It is common to want to filter your data frames so that you are only retrieving certain rows. Let's do that now.
+
+```{r}
+battedBalls %>%
+  names()
+
+batted_balls %>%
+  filter(fetch_name == "Changeup")
+
+batted_balls %>%
+  filter((fetch_name == "Changeup") & (launch_angle > 45))
+
+```
+
+```{python}
+battedBalls.columns #output column names
+battedBalls.loc[battedBalls["pitch_name"] == "Changeup"]
+battedBalls.loc[(battedBalls["pitch_name"] == "Changeup") & (battedBalls["launch_angle"] > 45)]
+
+
+```
+
+## Selecting Columns (Variables/Features)
+
+It is also common to want to subset your data frame so that you are only retrieving the columns/variables/features that you want. Let's do that now.
+
+```{r}
+
+
+```
+
+```{python}
+battedBalls.launch_angle
+
+battedBalls.loc[:,["pitch_name", "launch_speed", "launch_angle"]]
+```
+
+Sometimes it is more convenient to drop columns that we don't want. We'll do that below.
+
+```{r}
+batted_balls %>%
+  select(-bip_id, -batter_id)
+
+```
+
+```{python}
+battedBalls.drop(columns = ["bip_id", "batter_id", "pitcher_id"])
+
+```
+
+## Combining Row and Column Filtering
+
+Now that we know how to filter rows and subset columns, we can do both. Let's try that as well.
+
+```{r}
+battedBalls %>%
+  filter(outs_when_up == 2) %>%
+    select(pitch_name, launch_angle, launch_speed)
+
+```
+
+```{python}
+battedBalls.loc[(battedBalls["outs_when_up"] == 2), ["pitch_name", "launch_angle", "launch_speed"]]
+
+```
+
+## Summarizing Categorical Variables with Counts
+
+A common way to summarize categorical variables is to compute counts. We can do that below.
+
+```{r}
+batted_balls %>%
+  count(pitch_name)
+
+```
+
+```{python}
+battedBalls.value_counts("pitch_name") #returns as a series add .reset_index() to keep as columns
+
+```
+
+Be careful not to compute counts for numerical variables (especially those with lots of unique observed levels). The counting operation will take a long time to run and the results won't be useful.
+
+It's common to want counts sorted in ascending or descending order. Let's edit our code to sort our counts in descending order.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+We can also compute counts for combinations of levels of categorical variables. Let's do that as well.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Summarizing Numerical Data
+
+There are many more options than simple counts for summarizing numerical variables. We can compute means, medians, other quartiles, standard deviations, ranges, even other metrics that we create on our own! Let's see how to compute a summary statistic on a single column.
+
+```{r}
+
+```
+
+```{python}
+battedBalls.agg(
+  avg_launch_speed = ("launch_speed", "mean"),
+  median_launch_speed = ("launch_speed", "median"),
+  sd_launch_speed = ("launch_speed", "std"),
+  avg_launch_angle = ("launch_angle", "mean"),
+  median_launch_angle = ("launch_angle", "median"),
+  sd_launch_angle = ("launch_angle", "std")
+)
+
+```
+
+It is also possible to compute lots of summary statistics for one or more variables at a time. Let's see that as well.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Group By and Summarize
+
+Obtaining summary statistics for an entire data set is nice, but we often want to compare groups. In both languages, it is possible to *group-by* and *summarize*. Let's see how to obtain a summary statistic for each group defined by one or more categorical variables.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Transforming Data with New Columns
+
+We'll nearly always want to engage in some forms of *feature engineering*. This amounts to creating new columns out of existing columns within a data frame. Let's see how to do this below.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Joining Data From Other Data Frames
+
+It's rare that all of our relevant features exist nicely in one single data frame. There are very good database design principles which lead to this being the case. Being able to join features from different data frames together is an extremely useful skill. Let's see how to do that below.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Pivoting Between Wide- and Long-Formats
+
+Another quite useful skill, particularly when you want to include tables in a reporting document, is to be able to switch between wide- and long-formats for data. If we have time, we'll do this below.
+
+We'll start with a *toy* dataset.
+
+```{r}
+num_obs <- 5
+
+wide_fertilizer_data <- tibble(
+  "day" = 1:num_obs,
+  "A" = runif(num_obs, 0, 4),
+  "B" = runif(num_obs, 0, 4),
+  "C" = runif(num_obs, 0, 4),
+  "D" = runif(num_obs, 0, 4)
+)
+```
+
+```{python}
+num_obs = 5
+
+wide_fertilizer_data = pd.DataFrame({
+  "day" : range(num_obs),
+  "A" : np.random.uniform(0, 4, num_obs),
+  "B" : np.random.uniform(0, 4, num_obs),
+  "C" : np.random.uniform(0, 4, num_obs),
+  "D" : np.random.uniform(0, 4, num_obs)
+})
+```
+
+Now let's take a look at our data and try pivoting between wide format and long format, and vice-versa.
+
+```{r}
+
+```
+
+```{python}
+
+```
+
+## Summary
+
+This has been a quick overview of some very common data wrangling functionality. You'll certainly find use for functionality we haven't covered here, but you'll be able to pick that up as you need it.
