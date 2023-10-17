@@ -1,0 +1,36 @@
+---
+title: "ZillowComp"
+output: html_document
+author: "Grace Kim"
+date: "2023-10-17"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(reticulate)
+library(kableExtra)
+
+use_virtualenv("mat434")
+
+```
+
+
+import pandas and read in data
+
+```{python}
+
+import pandas as pd
+data = pd.read_csv("C:/Users/grace/OneDrive/Desktop/school/fall 2023/mat434/data.csv.zip")
+
+```
+
+print out head
+
+```{python}
+
+data.head()
+
+```
+
