@@ -1,23 +1,21 @@
 ---
-title: "ZillowComp"
+title: "Zillow Comp"
 output: html_document
 author: "Grace Kim"
-date: "2023-10-17"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 ---
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(reticulate)
+library(tidyverse)
 library(kableExtra)
 
 use_virtualenv("mat434")
 
 ```
 
-
-import pandas and read in data
 
 ```{python}
 
@@ -26,11 +24,41 @@ data = pd.read_csv("C:/Users/grace/OneDrive/Desktop/school/fall 2023/mat434/data
 
 ```
 
-print out head
+
+```{r}
+py$data %>%
+  head() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("hover", "striped"))
+```
+
+
+
 
 ```{python}
 
-data.head()
+data_rows = data.shape[0]
+data_cols = data.shape[1]
 
 ```
+
+There are `r py$data_rows` observations and `r py$data_cols` variables in the data.
+
+```{python}
+
+#data.info()
+
+medLotSize = data["lotSizeSqFt"].median()
+#data.value_counts("priceRange")
+maxLotSize = max(data["lotSizeSqFt"])
+minLotSize = min(data["lotSizeSqFt"])
+
+```
+
+The median lot size is `r py$medLotSize` square feet.
+The max lot size is `r py$maxLotSize` square feet.
+The min lot size is `r py$minLotSize` square feet.
+
+
+
 
