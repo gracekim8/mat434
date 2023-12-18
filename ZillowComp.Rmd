@@ -3,7 +3,18 @@ title: "Zillow Comp"
 output: html_document
 author: "Grace Kim"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
+toc: true
+knitr:
+  opts_chunk:
+    echo: FALSE
 ---
+
+
+
+# Statement of Purpose
+
+This report aims to utilize Zillow data to develop predictive models for house price ranges. Targeted at potential homebuyers and real estate stakeholders, my analysis seeks to empower informed decision-making by providing accurate insights into the expected price ranges of houses. The ultimate benefit lies in enabling individuals to navigate the real estate market with confidence and make well-informed investment choices.
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -20,6 +31,10 @@ use_virtualenv("mat434")
 ```{python}
 
 import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+import matplotlib.pyplot as plt
+
+
 data = pd.read_csv("C:/Users/grace/OneDrive/Desktop/school/fall 2023/mat434/data.csv.zip")
 
 ```
@@ -60,5 +75,274 @@ The max lot size is `r py$maxLotSize` square feet.
 The min lot size is `r py$minLotSize` square feet.
 
 
+```{python}
+
+train, test = train_test_split(data, train_size = 0.75, random_state = 434)
+train.drop(columns='id', inplace=True)
+test.drop(columns='id', inplace=True)
+
+```
 
 
+# Exploratory Data Analysis
+
+I first looked at the distributions of the price ranges and other variables in my data set.
+
+```{python}
+
+sorted_price_ranges = sorted(train['priceRange'].unique())
+
+plt.figure(figsize=(15, 8))
+plt.bar(sorted_price_ranges, train['priceRange'].value_counts()[sorted_price_ranges],  color='purple', edgecolor='black')
+
+plt.title('Distribution of Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Count')
+
+plt.show()
+
+```
+
+  We can see that there is a pretty even balance between the classes, but the lowest and highest price ranges have less instances. Next, I looked at the distributions of the different predictor variables.
+  
+  
+```{python}
+
+import seaborn as sns
+
+# city
+train.value_counts("city")
+
+
+# home type
+train.value_counts("homeType")
+
+# latitude
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['latitude'], color='purple', fill=True)
+
+plt.title('Distribution of Latitude')
+plt.xlabel('Latitude')
+plt.ylabel('Density')
+
+plt.show()
+
+# longitude
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['longitude'], color='purple', fill=True)
+
+plt.title('Distribution of Longitude')
+plt.xlabel('Longitude')
+plt.ylabel('Density')
+
+plt.show()
+
+
+# garage spaces
+plt.figure(figsize=(10, 6))
+plt.hist(train['garageSpaces'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Garage Spaces')
+plt.xlabel('Number of Garage Spaces')
+plt.ylabel('Count')
+
+plt.show()
+
+# hasSpa
+plt.figure(figsize=(10, 6))
+
+plt.bar(train['hasSpa'].unique(), train['hasSpa'].value_counts(), color='purple', edgecolor='black')
+
+plt.title('Distribution of Spas')
+plt.xlabel('Has Spa')
+plt.ylabel('Count')
+
+plt.show()
+
+# year built
+plt.figure(figsize=(10, 6))
+
+sns.kdeplot(train['yearBuilt'], color='purple', fill=True)
+
+plt.title('Distribution of Year Built')
+plt.xlabel('Year Built')
+plt.ylabel('Density')
+
+plt.show()
+
+
+# num of patio and porch features
+plt.figure(figsize=(10, 6))
+
+plt.bar(train['numOfPatioAndPorchFeatures'].unique(), train['numOfPatioAndPorchFeatures'].value_counts(), color='purple', edgecolor='black')
+
+plt.title('Distribution of Patio and Porch Features')
+plt.xlabel('Number of Patio and Porch Features')
+plt.ylabel('Count')
+
+plt.show()
+
+# lot size sq ft ?? NOT WORKING
+print("Lot Size plot not displaying properly")
+plt.figure(figsize=(10, 6))
+
+plt.hist(train['lotSizeSqFt'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Lot Size')
+plt.xlabel('Lot Size in Square Feet')
+plt.ylabel('Count')
+
+plt.show()
+
+# avg school rating
+plt.figure(figsize=(10, 6))
+
+plt.hist(train['avgSchoolRating'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of School Rating')
+plt.xlabel('School Rating')
+plt.ylabel('Count')
+
+plt.show()
+
+
+# median students per teacher
+plt.figure(figsize=(10, 6))
+
+plt.hist(train['MedianStudentsPerTeacher'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Median Students Per Teacher')
+plt.xlabel('Median Students Per Teacher')
+plt.ylabel('Count')
+
+plt.show()
+
+
+# num of bathrooms
+plt.figure(figsize=(10, 6))
+
+plt.hist(train['numOfBathrooms'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Bathrooms')
+plt.xlabel('Number of Bathrooms')
+plt.ylabel('Count')
+
+plt.show()
+
+# num of bedrooms
+plt.figure(figsize=(10, 6))
+
+plt.hist(train['numOfBedrooms'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Bedrooms')
+plt.xlabel('Number of Bedrooms')
+plt.ylabel('Count')
+
+plt.show()
+
+```
+
+  We see the majority of the homes are in Austin, single family homes, with 0-2 garage spaces. I now will explore how these variables are related to the price of the home.
+
+```{python}
+
+# has spa
+price_range_order = sorted_price_ranges
+
+plt.figure(figsize=(12, 8))
+sns.countplot(data=train, x='priceRange', hue='hasSpa', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of Spas by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Count')
+plt.legend(title='Has Spa', loc='upper right', labels=['No', 'Yes'])
+
+plt.show()
+
+
+
+```
+We can see the ratio of homes that have a spa increases as the prices increases.
+
+```{python}
+
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=train, x='priceRange', y='garageSpaces', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of Garage Spaces by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Garage Spaces')
+
+plt.show()
+
+
+```
+Distribution of garage spaces is pretty even, 0-250000 is slightly lower.
+
+
+```{python}
+
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=train, x='priceRange', y='yearBuilt', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of Year Built by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Year Built')
+
+plt.show()
+
+
+```
+We can see the lower limits of years decreasing as price increases, so the oldest houses are expensive.
+
+```{python}
+
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=train, x='priceRange', y='avgSchoolRating', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of School Rating by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Average School Rating')
+
+plt.show()
+
+
+```
+
+We can see that the average school rating and price range are positively correlated. 
+
+```{python}
+
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=train, x='priceRange', y='numOfBathrooms', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of Bathrooms by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Number of Bathrooms')
+
+plt.show()
+
+
+```
+
+While the lower/mid range houses have an even distribution of bathrooms, the number increases for the higher priced houses.
+
+
+```{python}
+
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=train, x='priceRange', y='MedianStudentsPerTeacher', palette='pastel', order=price_range_order)
+
+plt.title('Distribution of Students Per Teacher by Price Range')
+plt.xlabel('Price Range')
+plt.ylabel('Median Students Per Teacher')
+
+plt.show()
+
+
+```
+
+  Like with the number of bathrooms, the median students per teacher also increases for the mid/high range houses.
+  
+
+  
