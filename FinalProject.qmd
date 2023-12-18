@@ -1,0 +1,547 @@
+---
+title: "Predicting Wine Quality"
+format: html
+toc: true
+author: "Grace Kim"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+knitr:
+  opts_chunk:
+    echo: FALSE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(reticulate)
+library(tidyverse)
+library(kableExtra)
+
+use_virtualenv("mat434")
+
+```
+
+```{python}
+
+import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, roc_auc_score, precision_score, recall_score, confusion_matrix, classification_report
+from sklearn.ensemble import RandomForestClassifier
+#import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from plotnine import ggplot, aes, geom_point, labs, scale_color_manual, theme
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from tabulate import tabulate
+
+data = pd.read_csv("C:/Users/grace/OneDrive/Desktop/school/fall 2023/mat434/mat434/WineQT.csv")
+
+```
+
+# Statement of Purpose
+
+  What makes a good wine? Is it fully subjective and based on personal preference, or are there underlying characteristics that make a quality wine? This report utilizes machine learning techniques to predict and understand the key factors influencing wine quality.
+
+# Introduction
+
+  Evaluating the different factors and their impacts on wine quality is essential for both enthusiasts and industry professionals alike. The evaluation process encompasses a diverse range of properties, from sensory characteristics to chemical composition, each playing a crucial role in determining a wine's overall quality. Which of these characteristics contribute the most to the quality of wine? And what features are common in 'good' wines?
+  While there are a myriad of different varieties of wine to explore, my data set will focus on red variants of the Portuguese "Vinho Verde" wine. Rather than using all different types of wine, focusing on one allows us to pinpoint the specific differences that affect the quality.
+  This analysis serves several important purposes: For consumers, understanding the factors influencing wine quality aids in making informed choices. Winemakers and industry professionals rely on evaluations to maintain and enhance the quality of their products. By regularly assessing factors such as acidity, tannins, and flavor profiles, winemakers can make informed decisions during the winemaking process to ensure the production of high-quality wines.
+  
+# Executive Summary
+
+My data set had 11 numerical variables to predict the wine quality.
+- fixed acidity (tartaric acid -  g/dm^3) most acids involved with wine or fixed or nonvolatile (do not evaporate readily)
+- volatile acidity (acetic acid -  g/dm^3) the amount of acetic acid in wine, which at too high of levels can lead to an unpleasant, vinegar taste
+- citric acid (g/dm^3) found in small quantities, citric acid can add ‘freshness’ and flavor to wines
+- residual sugar (g/dm^3) the amount of sugar remaining after fermentation stops, it’s rare to find wines with less than 1 gram/liter and wines with       greater than 45 grams/liter are considered sweet
+- chlorides (sodium chloride -  g/dm^3) the amount of salt in the wine
+- free sulfur dioxide ( mg/dm^3) the free form of SO2 exists in equilibrium between molecular SO2 (as a dissolved gas) and bisulfite ion; it prevents      microbial growth and the oxidation of wine
+- total sulfur dioxide ( mg/dm^3) amount of free and bound forms of S02; in low concentrations, SO2 is mostly undetectable in wine, but at free SO2        concentrations over 50 ppm, SO2 becomes evident in the nose and taste of wine
+- density (g/cm^3) the density of water is close to that of water depending on the percent alcohol and sugar content
+- pH describes how acidic or basic a wine is on a scale from 0 (very acidic) to 14 (very basic); most wines are between 3-4 on the pH scale
+- sulphates (potassium sulphate -  g/dm^3) a wine additive which can contribute to sulfur dioxide gas (S02) levels, which acts as an antimicrobial and      antioxidant
+- alcohol (% by volume) the percent alcohol content of the wine
+Using these variables, I built a K Nearest Neighbors, Logistic Regression, and a Random Forest Classifier. 
+  
+# Exploratory Data Analysis
+
+```{python}
+
+data_rows = data.shape[0]
+data_cols = data.shape[1]
+
+```
+
+The original data set included `r py$data_rows` wines and `r py$data_cols` variables. The first few wines and their properties are listed below.
+
+```{r}
+py$data %>%
+  head() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("hover", "striped"))
+```
+
+
+```{python}
+
+train, test = train_test_split(data, train_size = 0.75, random_state = 434)
+train.drop(columns='Id', inplace=True)
+test.drop(columns='Id', inplace=True)
+
+train.columns = train.columns.str.replace(' ', '_')
+data.columns = data.columns.str.replace(' ', '_')
+test.columns = test.columns.str.replace(' ', '_')
+
+```
+
+  The data set was split into training data and testing data. The first few wines in the training set appear below.
+  
+```{r}
+py$train %>%
+  head() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("hover", "striped"))
+```
+
+
+```{python}
+
+train_rows = train.shape[0]
+test_rows = test.shape[0]
+
+```
+
+The training set includes `r py$train_rows` wines and the test set includes the remaining `r py$test_rows` variables.
+
+Because my goal is to understand the factors that make a wine's quality higher or lower, I first looked at the distributions of the wine quality and other variables in my data set.
+
+```{python}
+
+plt.figure(figsize=(10, 6))
+plt.hist(train['quality'], bins=20, color='purple', edgecolor='black')
+
+plt.title('Distribution of Wine Quality')
+plt.xlabel('Quality of Wine (0-10)')
+plt.ylabel('Count')
+
+plt.show()
+
+```
+  From an initial observation of the distribution of wine quality, it is clear that my data set is not well balanced. There is a much higher frequency of average wines (~5/6) than excellent (8+) or poor (< 3) quality wines.
+  Next, I explored the distributions of the other variables in my data set. They are numerical values based on physicochemical tests.
+
+```{python}
+import seaborn as sns
+
+# alcohol percentage
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['alcohol'], color='purple', fill=True)
+
+plt.title('Distribution of Alcohol Percentage')
+plt.xlabel('Alcohol Percentage')
+plt.ylabel('Density')
+
+plt.show()
+
+# fixed acidity
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['fixed_acidity'], color='purple', fill=True)
+
+plt.title('Distribution of Fixed Acidity')
+plt.xlabel('Fixed Acidity')
+
+plt.show()
+
+# volatile acidity
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['volatile_acidity'], color='purple', fill=True)
+
+plt.title('Distribution of Volatile Acidity')
+plt.xlabel('Volatile Acidity')
+
+plt.show()
+
+# citric acid
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['citric_acid'], color='purple', fill=True)
+
+plt.title('Distribution of Citric Acid Levels')
+plt.xlabel('Citric Acid')
+
+plt.show()
+
+# residual sugar
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['residual_sugar'], color='purple', fill=True)
+
+plt.title('Distribution of Residual Sugar')
+plt.xlabel('Residual Sugar Amount')
+
+plt.show()
+
+# chlorides
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['chlorides'], color='purple', fill=True)
+
+plt.title('Distribution of Chlorides')
+plt.xlabel('Chlorides')
+
+plt.show()
+
+# free sulfur dioxide
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['free_sulfur_dioxide'], color='purple', fill=True)
+
+plt.title('Distribution of Free Sulfur Dioxide')
+plt.xlabel('Free Sulfur Dioxide')
+
+plt.show()
+
+# total sulfur dioxide
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['total_sulfur_dioxide'], color='purple', fill=True)
+
+plt.title('Distribution of Total Sulfur Dioxide')
+plt.xlabel('Total Sulfur Dioxide')
+
+plt.show()
+
+# density
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['density'], color='purple', fill=True)
+
+plt.title('Distribution of Wine Density')
+plt.xlabel('Wine Density')
+
+plt.show()
+
+# pH
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['pH'], color='purple', fill=True)
+
+plt.title('Distribution of pH')
+plt.xlabel('pH')
+
+plt.show()
+
+# sulfates
+plt.figure(figsize=(8, 6))
+sns.kdeplot(train['sulphates'], color='purple', fill=True)
+
+plt.title('Distribution of Sulphates')
+plt.xlabel('Sulphates')
+
+plt.show()
+
+```
+
+  Next, I looked at how these variables might have affected the wine quality score. 
+  
+```{python}
+import math
+
+columns = train.columns[:-1]
+n_cols = 3
+n_rows = math.ceil(len(columns)/n_cols)
+fig, ax = plt.subplots(n_rows, n_cols, figsize=(40, n_rows*10))
+ax = ax.flatten()
+
+for i, column in enumerate(columns):
+    plot_axes = [ax[i]]
+    
+    sns.boxplot(
+        y=train[column],
+        x=train.quality,
+        ax=ax[i],
+    )
+    
+    # titles
+    ax[i].set_title(f'{column} Box Plot');
+    ax[i].set_xlabel(None)
+    ax[i].set_ylabel(None)
+
+    
+for i in range(i+1, len(ax)):
+    ax[i].axis('off')
+
+
+plt.subplots_adjust(wspace=.3, hspace=.9)
+
+#plt.tight_layout()
+plt.show()
+
+```
+  In the plots above, we can see the distribution of the different factors in relation to the quality levels of wine. Most of the plots show an even distribution. The citric acid and alcohol box plot show a positive correlation. The volatile acidity plot shows a negative correlation.
+  
+  
+```{python}
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
+averages = train.groupby("quality").mean()
+averages
+```
+  Upon a closer look at the variables and their means for each quality level, the residual sugar and sulphates levels also look like they could be positively correlated. However, this may be because of outliars increasing the means. Chlorides also look like they could be negatively correlated. These differences were too small to notice in the box plots, but may have significance.
+  
+# Model Construction
+
+
+## Nearest Neighbors Classifier
+
+```{python}
+
+predictors = ["fixed_acidity", "volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "free_sulfur_dioxide", "total_sulfur_dioxide", "density", "pH", "sulphates", "alcohol"]
+num_cols = predictors;
+
+x_train = train[predictors]
+y_train = train["quality"]
+
+num_pipe_knn = Pipeline([
+  ("num_impute", SimpleImputer(strategy = "median")),
+  ("norm", StandardScaler())
+])
+
+
+preprocessor_knn = ColumnTransformer([
+  ("num", num_pipe_knn, num_cols),
+])
+
+knn_clf = KNeighborsClassifier()
+
+pipe_knn = Pipeline([
+  ("preprocess", preprocessor_knn),
+  ("model", knn_clf)
+])
+
+cv_results = cross_val_score(pipe_knn, x_train, y_train, cv = 4, scoring = "accuracy")
+
+print("Cross-validation results:", cv_results)
+print("Mean accuracy:", cv_results.mean())
+
+```
+
+  Listed above are the cross validation results for my model. After hyperparameter tuning, the new results are below.
+
+```{python}
+param_grid_knn = {
+    'model__n_neighbors': [3, 5, 7, 9],
+    'model__weights': ['uniform', 'distance']
+}
+
+grid_search_knn = GridSearchCV(pipe_knn, param_grid_knn, cv=4, scoring='accuracy')
+
+grid_search_knn.fit(x_train, y_train)
+
+pipe_knn = grid_search_knn.best_estimator_
+
+
+cv_results = cross_val_score(pipe_knn, x_train, y_train, cv=4, scoring='accuracy')
+
+print("Cross-validation results:", cv_results)
+print("Mean accuracy:", cv_results.mean())
+```
+
+```{python}
+
+pipe_knn.fit(x_train, y_train)
+
+x_test = test[predictors]
+y_test = test['quality']
+
+test_preds = pipe_knn.predict(x_test)
+accuracy = accuracy_score(y_test, test_preds)
+
+```
+  After fitting the model to the train data, the models accuracy on the test data is `r py$accuracy`.
+
+## Logistic Regression
+
+```{python}
+
+lr_clf = LogisticRegression(max_iter = 50000, solver = 'liblinear')
+
+num_pipe_lr = Pipeline([
+    ("num_imputer", SimpleImputer(strategy="median")),
+    ("norm", StandardScaler())
+])
+
+preprocessor_lr = ColumnTransformer([
+    ("num", num_pipe_lr, num_cols),
+])
+
+
+pipe_lr = Pipeline([
+    ("preprocess", preprocessor_lr),
+    ("model", lr_clf)
+])
+
+pipe_lr.fit(x_train, y_train)
+
+
+cv_results_lr = cross_val_score(pipe_lr, x_train, y_train, cv=4, scoring="accuracy")
+
+print("Cross-validation results:", cv_results_lr)
+print("Mean accuracy:", cv_results_lr.mean())
+
+
+```
+The cross validation results for my simple logistic regression model are listed above. It does better out of the box than the nearest neighbors classifier. Again, I will tune the hyperparameters.
+
+```{python}
+
+param_grid_lr = {
+    'model__penalty': ['l1', 'l2'],
+    'model__C': [0.001, 0.01, 0.1, 1, 10, 100, 1000],
+}
+
+grid_search_lr = GridSearchCV(pipe_lr, param_grid_lr, cv=4, scoring='accuracy', n_jobs=-1)
+
+grid_search_lr.fit(x_train, y_train)
+
+pipe_lr = grid_search_lr.best_estimator_
+
+
+cv_results = cross_val_score(pipe_lr, x_train, y_train, cv=4, scoring='accuracy')
+
+print("Cross-validation results:", cv_results)
+print("Mean accuracy:", cv_results.mean())
+
+print("Best Hyperparameters:", grid_search_lr.best_params_)
+print("Best Accuracy:", grid_search_lr.best_score_)
+
+```
+  Tuning our models didn't improve the accuracy. It looks like the C and penalty default parameters were optimal for our data. Now, I'll look at the model coefficients.
+  
+  
+```{python}
+
+pipe_lr.fit(x_train, y_train)
+
+coefficients = lr_clf.coef_
+
+coData = {'feature': [predictors],
+        'coefficient': [coefficients]}
+
+
+df = pd.DataFrame(coData)
+
+table = tabulate(df, headers='keys', tablefmt='pipe', showindex=False)
+
+print(table)
+
+```
+  
+```{python}
+
+pipe_lr.fit(x_train, y_train)
+
+test_preds = pipe_lr.predict(x_test)
+accuracy = accuracy_score(y_test, test_preds)
+
+```
+  After fitting the model to the train data, the models accuracy on the test data is `r py$accuracy`.
+  
+
+## Random Forest
+
+
+
+```{python}
+
+rf_clf = RandomForestClassifier()
+
+num_pipe_rf = Pipeline([
+    ("num_imputer", SimpleImputer(strategy="median")),
+    ("norm", StandardScaler())
+])
+
+preprocessor_rf = ColumnTransformer([
+    ("num", num_pipe_rf, num_cols),
+])
+
+
+pipe_rf = Pipeline([
+    ("preprocess", preprocessor_rf),
+    ("model", rf_clf)
+])
+
+pipe_rf.fit(x_train, y_train)
+
+
+cv_results_rf = cross_val_score(pipe_rf, x_train, y_train, cv=4, scoring="accuracy")
+
+print("Cross-validation results:", cv_results_rf)
+print("Mean accuracy:", cv_results_rf.mean())
+
+
+```
+  My random forest classifier performed the better out of the box than the nearest neighbors and logistic regression models. I will again tune the hyperparameters to try and improve its performance.
+
+
+```{python}
+
+
+param_grid = {
+    'model__n_estimators': [50, 100, 150],
+    'model__max_depth': [None, 10, 20], 
+    'model__min_samples_split': [2, 5, 10],  
+    'model__min_samples_leaf': [1, 2, 4],
+    'model__max_features': [1, 'sqrt', 'log2'] 
+}
+
+grid_search_rf = GridSearchCV(pipe_rf, param_grid, cv=4, scoring='accuracy', n_jobs=-1)
+
+grid_search_rf.fit(x_train, y_train)
+
+best_rf = grid_search_rf.best_estimator_
+
+
+cv_results_best_rf = cross_val_score(best_rf, x_train, y_train, cv=4, scoring="accuracy")
+
+print("Cross-validation results:", cv_results_best_rf)
+print("Mean accuracy:", cv_results_best_rf.mean())
+
+
+```
+  After tuning my hyperparameters, my model is less accurate than the out of the box model.
+  
+```{python}
+
+pipe_rf.fit(x_train, y_train)
+
+test_preds = pipe_rf.predict(x_test)
+accuracy = accuracy_score(y_test, test_preds)
+
+```
+  
+  The original model's accuracy on the test data is `r py$accuracy`.
+  
+  
+# Model Interpretation and Inference
+
+
+
+
+
+
+
+# Conclusion
+
+
+
+
+
+
+
+# References
+
+Wine Quality Data Set: https://www.kaggle.com/datasets/yasserh/wine-quality-dataset/data
+
